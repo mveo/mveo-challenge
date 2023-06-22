@@ -1,0 +1,25 @@
+trainer:
+  accelerator : 'gpu'
+  precision: 16-mixed
+  min_epochs: 5
+  max_epochs: 100
+  benchmark: True
+  log_every_n_steps: 10
+learning:
+    model: "unet"
+    loss: "ce"
+    backbone: "resnet18"
+    weights: True  # imagenet weights
+    in_channels: 4  # RGB+DEM
+    num_classes: 16
+    learning_rate: 1e-3
+    learning_rate_schedule_patience: 6
+    ignore_index: 0  # classes 0 & 15 are not used in scoring
+datamodule:
+    root_dir: "datasets/df2022/"
+    train_coordinate_file_path: "train_coordinate_list.txt"
+    val_coordinate_file_path: "val_coordinate_list.txt"
+    batch_size: 8
+    num_workers: 8
+    patch_size: 256
+    predict_on: "val"
