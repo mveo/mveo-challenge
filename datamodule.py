@@ -32,22 +32,26 @@ class DFC2022DataModule(pl.LightningDataModule):
         batch_size: int = 8,
         num_workers: int = 0,
         train_coordinate_file_path: str = 'train_coords.txt',
-        val_coordinate_file_path: str = 'val_coords.txt',
-        patch_size: int = 512,
-        predict_on: str = "val",
+        training_confidence_th: float = 1.0,
+        val_image_file_path: str = 'val_coords.txt',
+        patch_size: int = 256,
         augmentations=DEFAULT_AUGS,
         **kwargs,
     ):
         super().__init__()
-        assert predict_on in DFC2022.metadata
         self.root_dir = root_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.train_coordinate_file_path = train_coordinate_file_path
-        self.val_coordinate_file_path = val_coordinate_file_path
+        self.training_confidence_th = training_confidence_th
+        self.val_image_file_path = val_image_file_path
         self.patch_size = patch_size
-        self.predict_on = predict_on
         self.augmentations = augmentations
+        # self.random_crop = T.RandomCrop((self.patch_size, self.patch_size))
+        self.random_crop = K.AugmentationSequential(
+            K.RandomCrop((self.patch_size, self.patch_size), p=1.0, keepdim=False),
+            data_keys=["input", "mask"],
+        )
 
         self.train_dataset = None
         self.val_dataset = None
@@ -69,17 +73,38 @@ class DFC2022DataModule(pl.LightningDataModule):
 
         return sample
 
+    # this is only used to simplify the validation process
+    # the validation process is performed using crops of the validation images
+    def crop(self, sample):
+        sample["image"] = rearrange(sample["image"], "c h w -> () c h w")
+        sample["mask"] = rearrange(sample["mask"], "c h w -> () c h w")
+        sample["mask"] = sample["mask"].to(torch.float)
+
+        sample["image"], sample["mask"] = self.random_crop(
+            sample["image"], sample["mask"]
+        )
+
+        sample["mask"] = sample["mask"].to(torch.long)
+        sample["image"] = rearrange(sample["image"], "() c h w -> c h w")
+        sample["mask"] = rearrange(sample["mask"], "() c h w -> c h w")
+        return sample
+
     def setup(self, stage=None):
-        transforms = T.Compose([self.preprocess])
+        train_transforms = T.Compose([self.preprocess])
+        val_transforms = T.Compose([self.preprocess, self.crop])
         test_transforms = T.Compose([self.preprocess])
 
         self.train_dataset = DFC2022(self.root_dir, self.train_coordinate_file_path, "train",
-                                     self.patch_size, transforms=transforms)
-        self.val_dataset = DFC2022(self.root_dir, self.val_coordinate_file_path, "train",
-                                   self.patch_size, transforms=transforms)
+                                     self.patch_size, training_confidence_th=self.training_confidence_th,
+                                     transforms=train_transforms)
 
-        self.predict_dataset = DFC2022(self.root_dir, None, self.predict_on,
-                                       self.patch_size, transforms=test_transforms)
+        # for validation, there is no patch size for the dataloader since patches are generated using the transforms
+        self.val_dataset = DFC2022(self.root_dir, self.val_image_file_path, "train_val",
+                                   patch_size=-1, transforms=val_transforms)
+
+        # for test, there is no patch size since images are processed entirely
+        self.test_dataset = DFC2022(self.root_dir, None, "test",
+                                    patch_size=-1, transforms=test_transforms)
 
     def train_dataloader(self):
         return DataLoader(
@@ -91,13 +116,16 @@ class DFC2022DataModule(pl.LightningDataModule):
 
     def val_dataloader(self):
         return DataLoader(
-            self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=False
+            self.val_dataset,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            shuffle=False
         )
 
-    def predict_dataloader(self):
+    def test_dataloader(self):
         return DataLoader(
-            self.predict_dataset,
-            batch_size=self.batch_size,
+            self.test_dataset,
+            batch_size=1,
             num_workers=self.num_workers,
             shuffle=False,
         )

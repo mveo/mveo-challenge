@@ -49,6 +49,7 @@ class DFC2022(Dataset):
 
     metadata = {
         "train": "labeled_train",
+        "train_val": "labeled_train",
         "val": "val",
         "test": "test",
     }
@@ -63,6 +64,7 @@ class DFC2022(Dataset):
             coordinate_file_path=None,
             split="train",
             patch_size=256,
+            training_confidence_th=1.0,
             transforms=None
     ) -> None:
         assert split in self.metadata
@@ -70,27 +72,24 @@ class DFC2022(Dataset):
         self.coordinate_file_path = coordinate_file_path
         self.split = split
         self.patch_size = patch_size
+        self.training_confidence_th = training_confidence_th
         self.transforms = transforms
 
         self.files = self._load_files()
+        print(self.split, len(self.files))
 
     def __getitem__(self, index):
-        img_path, dem_path = self.files[index]["image"], self.files[index]["dem"]
-        if self.split == "train":
-            label_path = self.files[index]["target"]
-        if self.coordinate_file_path is not None:
-            coord_x, coord_y = self.files[index]['coord_x'], self.files[index]['coord_y']
+        img_path, dem_path, label_path = self.files[index]["image"], \
+                                         self.files[index]["dem"], self.files[index]["target"]
 
         image = self._load_image(img_path)
-        if '44-2013-0375-6697-LA93-0M50-E080' in img_path:
-            print('check -------------------------------->>>>>>>>>>', image.shape)
         dem = self._load_image(dem_path, shape=image.shape[1:])
         image = torch.cat(tensors=[image, dem], dim=0)
 
-        if self.split == "train":
-            mask = self._load_target(label_path)
+        mask = self._load_target(label_path)
 
-        if self.coordinate_file_path is not None:
+        if self.coordinate_file_path is not None and self.patch_size != -1:
+            coord_x, coord_y = self.files[index]['coord_x'], self.files[index]['coord_y']
             image = image[:, coord_x:coord_x + self.patch_size, coord_y:coord_y + self.patch_size]
             mask = mask[coord_x:coord_x + self.patch_size, coord_y:coord_y + self.patch_size]
 
@@ -111,31 +110,30 @@ class DFC2022(Dataset):
 
             files = []
             for x in file_list:
-                img_path = os.path.join(self.root, self.metadata[self.split], x[0], self.image_root, x[1] + ".tif")
-                dem_path = os.path.join(self.root, self.metadata[self.split], x[0], self.dem_root,
-                                        x[1] + '_RGEALTI.tif')
-                if self.split == "train":
-                    label_path = os.path.join(self.root, self.metadata[self.split],
-                                              x[0], self.target_root, x[1] + '_UA2012.tif')
-                    files.append(dict(image=img_path, dem=dem_path, target=label_path,
-                                      coord_x=int(x[2]), coord_y=int(x[3])))
-                else:
-                    files.append(dict(image=img_path, dem=dem_path, coord_x=int(x[2]), coord_y=int(x[3])))
+                if float(x[4]) >= self.training_confidence_th:
+                    img_path = os.path.join(self.root, self.metadata[self.split], x[0], self.image_root, x[1] + ".tif")
+                    dem_path = os.path.join(self.root, self.metadata[self.split], x[0], self.dem_root,
+                                            x[1] + '_RGEALTI.tif')
+                    if self.split == "train" or self.split == "train_val":
+                        label_path = os.path.join(self.root, self.metadata[self.split],
+                                                  x[0], self.target_root, x[1] + '_UA2012.tif')
+                        files.append(dict(image=img_path, dem=dem_path, target=label_path,
+                                          coord_x=int(x[2]), coord_y=int(x[3])))
+                    else:
+                        files.append(dict(image=img_path, dem=dem_path, coord_x=int(x[2]), coord_y=int(x[3])))
         else:
             directory = os.path.join(self.root, self.metadata[self.split])
-            images = glob.glob(os.path.join(directory, "**", self.image_root, "*.tif"), recursive=True)
+            targets = glob.glob(os.path.join(directory, "**", self.target_root, "*.tif"), recursive=True)
 
             files = []
-            for image in sorted(images):
-                dem = image.replace(self.image_root, self.dem_root)
-                dem = f"{os.path.splitext(dem)[0]}_RGEALTI.tif"
+            for target in sorted(targets):
+                image = target.replace(self.target_root, self.image_root)
+                image = image.split("_reference.tif")[0] + '.tif'
 
-                if self.split == "train":
-                    target = image.replace(self.image_root, self.target_root)
-                    target = f"{os.path.splitext(target)[0]}_UA2012.tif"
-                    files.append(dict(image=image, dem=dem, target=target))
-                else:
-                    files.append(dict(image=image, dem=dem))
+                dem = target.replace(self.target_root, self.dem_root)
+                dem = dem.split("_reference.tif")[0] + '_RGEALTI.tif'
+
+                files.append(dict(image=image, dem=dem, target=target))
 
         return files
 

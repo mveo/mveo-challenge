@@ -1,10 +1,10 @@
 trainer:
-  accelerator : 'gpu'
-  precision: 16-mixed
-  min_epochs: 5
-  max_epochs: 100
-  benchmark: True
-  log_every_n_steps: 10
+    accelerator : 'gpu'
+    precision: 16-mixed
+    min_epochs: 1  # 5
+    max_epochs: 1  # 100
+    benchmark: True
+    log_every_n_steps: 10
 learning:
     model: "unet"
     loss: "ce"
@@ -16,10 +16,10 @@ learning:
     learning_rate_schedule_patience: 6
     ignore_index: 0  # classes 0 & 15 are not used in scoring
 datamodule:
-    root_dir: "datasets/df2022/"
+    root_dir: "/home/kno/datasets/df2022/"
     train_coordinate_file_path: "train_coordinate_list.txt"
-    val_coordinate_file_path: "val_coordinate_list.txt"
-    batch_size: 8
+    training_confidence_th: 1.0
+    val_image_file_path: "val_image_list.txt"
+    batch_size: 64
     num_workers: 8
     patch_size: 256
-    predict_on: "val"
