@@ -46,8 +46,8 @@ This repo also has the file `val_image_list.txt` which list the images that shou
 The final submission must be a file with all candidate samples, 
 each with the same 5 columns, but varying the score depending on 
 the importance of the example. This file must be sent to 
-[keiller.nogueira@stir.ac.uk](keiller.nogueira@stir.ac.uk), with title 
-[BMVC Challenge Submission TEAMNAME], where TEAMNAME 
+[data-centric-challenge-mveo@googlegroups.com](data-centric-challenge-mveo@googlegroups.com), with title 
+[MVEO Challenge Submission TEAMNAME], where TEAMNAME 
 should be the name of your team for the [leaderboard](https://mveo.github.io/challenge.html). 
 
 ## Dependencies
