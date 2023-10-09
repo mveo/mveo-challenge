@@ -21,6 +21,7 @@ def main(_config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_file", type=str, required=True, help="Path to config.yaml file")
+    parser.add_argument("--config_file", type=str, required=True, help="Path to config.yaml file")
     args = parser.parse_args()
 
     _config = OmegaConf.load(args.config_file)

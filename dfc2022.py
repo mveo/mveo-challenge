@@ -1,6 +1,7 @@
 import glob
 import os
 
+import pandas as pd
 import numpy as np
 import rasterio
 import torch
@@ -64,7 +65,7 @@ class DFC2022(Dataset):
             coordinate_file_path=None,
             split="train",
             patch_size=256,
-            training_confidence_th=1.0,
+            training_sample_amount=77133,
             transforms=None
     ) -> None:
         assert split in self.metadata
@@ -72,7 +73,7 @@ class DFC2022(Dataset):
         self.coordinate_file_path = coordinate_file_path
         self.split = split
         self.patch_size = patch_size
-        self.training_confidence_th = training_confidence_th
+        self.training_sample_amount = training_sample_amount
         self.transforms = transforms
 
         self.files = self._load_files()
@@ -106,21 +107,34 @@ class DFC2022(Dataset):
     def _load_files(self):
         if self.coordinate_file_path is not None:
             # read list of patches
-            file_list = np.loadtxt(self.coordinate_file_path, dtype=str, delimiter=' ')
+            # file_list = np.loadtxt(self.coordinate_file_path, dtype=str, delimiter=' ')
+            # file_list = np.genfromtxt(self.coordinate_file_path, dtype=None, delimiter=' ')
+            file_list = pd.read_csv(self.coordinate_file_path, dtype=None, delimiter=' ').to_numpy()
+
+            if self.coordinate_file_path == 'train_coordinate_list.txt':
+                # shuffle because all instances have score 1.0
+                np.random.shuffle(file_list)  # shuffle
+                sort_samples = file_list
+            else:
+                # otherwise, sort based on the score
+                sort_samples = file_list[file_list[:, 4].argsort()[::-1]]
+
+            # selecting samples based on the threshold
+            selected_samples = sort_samples[0:self.training_sample_amount, :]
+            print('check average score', np.mean(selected_samples[:, 4]))
 
             files = []
-            for x in file_list:
-                if float(x[4]) >= self.training_confidence_th:
-                    img_path = os.path.join(self.root, self.metadata[self.split], x[0], self.image_root, x[1] + ".tif")
-                    dem_path = os.path.join(self.root, self.metadata[self.split], x[0], self.dem_root,
-                                            x[1] + '_RGEALTI.tif')
-                    if self.split == "train" or self.split == "train_val":
-                        label_path = os.path.join(self.root, self.metadata[self.split],
-                                                  x[0], self.target_root, x[1] + '_UA2012.tif')
-                        files.append(dict(image=img_path, dem=dem_path, target=label_path,
-                                          coord_x=int(x[2]), coord_y=int(x[3])))
-                    else:
-                        files.append(dict(image=img_path, dem=dem_path, coord_x=int(x[2]), coord_y=int(x[3])))
+            for x in selected_samples:
+                img_path = os.path.join(self.root, self.metadata[self.split], x[0], self.image_root, x[1] + ".tif")
+                dem_path = os.path.join(self.root, self.metadata[self.split], x[0], self.dem_root,
+                                        x[1] + '_RGEALTI.tif')
+                if self.split == "train" or self.split == "train_val":
+                    label_path = os.path.join(self.root, self.metadata[self.split],
+                                              x[0], self.target_root, x[1] + '_UA2012.tif')
+                    files.append(dict(image=img_path, dem=dem_path, target=label_path,
+                                      coord_x=int(x[2]), coord_y=int(x[3])))
+                else:
+                    files.append(dict(image=img_path, dem=dem_path, coord_x=int(x[2]), coord_y=int(x[3])))
         else:
             directory = os.path.join(self.root, self.metadata[self.split])
             targets = glob.glob(os.path.join(directory, "**", self.target_root, "*.tif"), recursive=True)

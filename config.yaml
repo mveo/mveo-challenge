@@ -1,8 +1,8 @@
 trainer:
     accelerator : 'gpu'
     precision: 16-mixed
-    min_epochs: 1  # 5
-    max_epochs: 1  # 100
+    min_epochs: 6
+    max_epochs: 100
     benchmark: True
     log_every_n_steps: 10
 learning:
@@ -18,7 +18,8 @@ learning:
 datamodule:
     root_dir: "/home/kno/datasets/df2022/"
     train_coordinate_file_path: "train_coordinate_list.txt"
-    training_confidence_th: 1.0
+    # 1% =~ 770, 10% =~ 7700, 25% =~ 19000, 50% =~ 38500
+    training_sample_amount: 770  # 77133 is the total number of training samples
     val_image_file_path: "val_image_list.txt"
     batch_size: 64
     num_workers: 8

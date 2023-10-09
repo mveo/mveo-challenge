@@ -32,7 +32,7 @@ class DFC2022DataModule(pl.LightningDataModule):
         batch_size: int = 8,
         num_workers: int = 0,
         train_coordinate_file_path: str = 'train_coords.txt',
-        training_confidence_th: float = 1.0,
+        training_sample_amount: int = 77133,
         val_image_file_path: str = 'val_coords.txt',
         patch_size: int = 256,
         augmentations=DEFAULT_AUGS,
@@ -43,7 +43,7 @@ class DFC2022DataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.train_coordinate_file_path = train_coordinate_file_path
-        self.training_confidence_th = training_confidence_th
+        self.training_sample_amount = training_sample_amount
         self.val_image_file_path = val_image_file_path
         self.patch_size = patch_size
         self.augmentations = augmentations
@@ -95,7 +95,7 @@ class DFC2022DataModule(pl.LightningDataModule):
         test_transforms = T.Compose([self.preprocess])
 
         self.train_dataset = DFC2022(self.root_dir, self.train_coordinate_file_path, "train",
-                                     self.patch_size, training_confidence_th=self.training_confidence_th,
+                                     self.patch_size, training_sample_amount=self.training_sample_amount,
                                      transforms=train_transforms)
 
         # for validation, there is no patch size for the dataloader since patches are generated using the transforms
